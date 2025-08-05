@@ -11,3 +11,6 @@ python-dotenv
 pyyaml
 requests
 sift-stack-py
+pytest
+pytest-asyncio
+pytest-aiohttp

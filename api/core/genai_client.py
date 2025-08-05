@@ -63,20 +63,38 @@ class SimpleGenAIClient:
             "anthropic-version": "2023-06-01"
         }
         
-        if schema:
-            prompt += f"\n\nPlease respond in valid JSON format matching this schema: {json.dumps(schema)}"
-        
         payload = {
             "model": "claude-3-sonnet-20240229",
             "max_tokens": 1500,
             "messages": [{"role": "user", "content": prompt}]
         }
+
+        if schema:
+            payload["tools"] = [{
+                "name": "json_output",
+                "description": "A tool to output a JSON object matching a schema.",
+                "input_schema": schema
+            }]
+            payload["tool_choice"] = {"type": "tool", "name": "json_output"}
         
         async with session.post("https://api.anthropic.com/v1/messages",
                                headers=headers, json=payload) as response:
             data = await response.json()
+
+            content = ""
+            if schema:
+                # Find the tool_use block and extract the JSON content
+                tool_use_block = next((block for block in data.get("content", []) if block.get("type") == "tool_use"), None)
+                if tool_use_block:
+                    content = json.dumps(tool_use_block.get("input", {}))
+            else:
+                # Fallback to original behavior if no schema is provided
+                content_block = next((block for block in data.get("content", []) if block.get("type") == "text"), None)
+                if content_block:
+                    content = content_block.get("text", "")
+
             return {
-                "content": data["content"][0]["text"],
+                "content": content,
                 "provider": "claude",
                 "tokens_used": data.get("usage", {}).get("input_tokens", 0) + data.get("usage", {}).get("output_tokens", 0)
             }
